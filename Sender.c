@@ -10,7 +10,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define SERVER_PORT 5060  // The port that the server listens
+#define SENDER_PORT 5060  // The port that the server listens
 #define BUFFER_SIZE 1024
 #define FILE_SIZE 2000000
 #define FILE_NAME "random_file"
@@ -80,15 +80,15 @@ int main() {
     }
 
     // "sockaddr_in" is the "derived" from sockaddr structure
-    struct sockaddr_in serverAddress;
-    memset(&serverAddress, 0, sizeof(serverAddress));
+    struct sockaddr_in senderAddress;
+    memset(&senderAddress, 0, sizeof(senderAddress));
 
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_addr.s_addr = INADDR_ANY; // any IP at this port (Address to accept any incoming messages)
-    serverAddress.sin_port = htons(SERVER_PORT);  // network order (makes byte order consistent)
+    senderAddress.sin_family = AF_INET;
+    senderAddress.sin_addr.s_addr = INADDR_ANY; // any IP at this port (Address to accept any incoming messages)
+    senderAddress.sin_port = htons(SENDER_PORT);  // network order (makes byte order consistent)
 
     // Bind the socket to the port with any IP at this port
-    int bindResult = bind(listeningSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
+    int bindResult = bind(listeningSocket, (struct sockaddr *)&senderAddress, sizeof(senderAddress));
     if (bindResult == -1) {
         printf("Bind failed with error code : %d", errno);
         // close the socket
@@ -111,14 +111,14 @@ int main() {
 
     // Accept and incoming connection
     printf("Waiting for incoming TCP-connections...\n");
-    struct sockaddr_in clientAddress;  //
-    socklen_t clientAddressLen = sizeof(clientAddress);
+    struct sockaddr_in receiverAddress;  //
+    socklen_t receiverAddressLen = sizeof(receiverAddress);
 
     while (1) {
-        memset(&clientAddress, 0, sizeof(clientAddress));
-        clientAddressLen = sizeof(clientAddress);
-        int clientSocket = accept(listeningSocket, (struct sockaddr *)&clientAddress, &clientAddressLen);
-        if (clientSocket == -1) {
+        memset(&receiverAddress, 0, sizeof(receiverAddress));
+        receiverAddressLen = sizeof(receiverAddress);
+        int receiverSocket = accept(listeningSocket, (struct sockaddr *)&receiverAddress, &receiverAddressLen);
+        if (receiverSocket == -1) {
             printf("listen failed with error code : %d", errno);
             // close the sockets
             close(listeningSocket);
@@ -130,12 +130,12 @@ int main() {
         // Receive a message from client
         char buffer[BUFFER_SIZE];
         memset(buffer, 0, BUFFER_SIZE);
-        int bytesReceived = recv(clientSocket, buffer, BUFFER_SIZE, 0);
+        int bytesReceived = recv(receiverSocket, buffer, BUFFER_SIZE, 0);
         if (bytesReceived == -1) {
             printf("recv failed with error code : %d", errno);
             // close the sockets
             close(listeningSocket);
-            close(clientSocket);
+            close(receiverSocket);
             return -1;
         }
         
@@ -146,11 +146,11 @@ int main() {
         char* message = util_generate_random_data(FILE_SIZE);
         int messageLen = strlen(FILE_NAME) + 1;
 
-        int bytesSent = send(clientSocket, message, messageLen, 0);
+        int bytesSent = send(receiverSocket, message, messageLen, 0);
         if (bytesSent == -1) {
             printf("send() failed with error code : %d", errno);
             close(listeningSocket);
-            close(clientSocket);
+            close(receiverSocket);
             return -1;
         } else if (bytesSent == 0) {
             printf("peer has closed the TCP connection prior to send().\n");
