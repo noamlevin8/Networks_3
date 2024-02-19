@@ -16,6 +16,7 @@ int main() {
     char* str = "";
     int count_runs = 0;
     float sum_times = 0;
+    float sum_bandwidth = 0;
 
     int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -75,13 +76,20 @@ int main() {
         printf("recv() failed with error code : %d", errno);
     } else if (bytesReceived == 0) {
         printf("peer has closed the TCP connection prior to recv().\n");
-        printf("%s\n", str);
-        printf("Avg: %f", sum_times/count_runs);
     } else {
         //printf("received %d bytes from server: %s\n", bytesReceived, bufferReply);
         printf("File transfer completed.\n");
     }
     
+    printf("Waiting for Sender response...\n");
+    printf("Sender sent exit message.\n");
+
+    printf("-----------------------------");
+    printf("%s\n\n", str);
+    printf("Avrage time: %f\n", sum_times/count_runs);
+    printf("Avrage bandwidth: %f\n", sum_bandwidth/count_runs);
+    printf("-----------------------------");
+
     close(sock);
     printf("Receiver end.\n");
     return 0;
