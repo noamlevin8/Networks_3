@@ -114,6 +114,9 @@ int main() {
     struct sockaddr_in receiverAddress;  //
     socklen_t receiverAddressLen = sizeof(receiverAddress);
 
+    char* message;
+    int messageLen;
+
     while (1) {
         memset(&receiverAddress, 0, sizeof(receiverAddress));
         receiverAddressLen = sizeof(receiverAddress);
@@ -127,24 +130,24 @@ int main() {
 
         printf("A new client connection accepted\n");
 
-        // Receive a message from client
-        char buffer[BUFFER_SIZE];
-        memset(buffer, 0, BUFFER_SIZE);
-        int bytesReceived = recv(receiverSocket, buffer, BUFFER_SIZE, 0);
-        if (bytesReceived == -1) {
-            printf("recv failed with error code : %d", errno);
-            // close the sockets
-            close(listeningSocket);
-            close(receiverSocket);
-            return -1;
-        }
+        // // Receive a message from client
+        // char buffer[BUFFER_SIZE];
+        // memset(buffer, 0, BUFFER_SIZE);
+        // int bytesReceived = recv(receiverSocket, buffer, BUFFER_SIZE, 0);
+        // if (bytesReceived == -1) {
+        //     printf("recv failed with error code : %d", errno);
+        //     // close the sockets
+        //     close(listeningSocket);
+        //     close(receiverSocket);
+        //     return -1;
+        // }
         
-        printf("Received: %s", buffer);
+        // printf("Received: %s", buffer);
 
         // Reply to 
         //util_generate_random_data(FILE_NAME, FILE_SIZE);
-        char* message = util_generate_random_data(FILE_SIZE);
-        int messageLen = strlen(FILE_NAME) + 1;
+        message = util_generate_random_data(FILE_SIZE);
+        messageLen = strlen(FILE_NAME) + 1;
 
         int bytesSent = send(receiverSocket, message, messageLen, 0);
         if (bytesSent == -1) {

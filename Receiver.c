@@ -69,19 +69,28 @@ int main() {
     //     printf("message was successfully sent.\n");
     // }
     
-    // Receive data from server
     char bufferReply[BUFFER_SIZE] = {'\0'};
-    int bytesReceived = recv(sock, bufferReply, BUFFER_SIZE, 0);
-    if (bytesReceived == -1) {
-        printf("recv() failed with error code : %d", errno);
-    } else if (bytesReceived == 0) {
-        printf("peer has closed the TCP connection prior to recv().\n");
-    } else {
-        //printf("received %d bytes from server: %s\n", bytesReceived, bufferReply);
-        printf("File transfer completed.\n");
+    int bytesReceived;
+
+    while (1)
+    {  
+        // Receive data from server
+        bytesReceived = recv(sock, bufferReply, BUFFER_SIZE, 0);
+        if (bytesReceived == -1) {
+            printf("recv() failed with error code : %d", errno);
+        } else if (bytesReceived == 0) {
+            printf("peer has closed the TCP connection prior to recv().\n");
+        } else {
+            //printf("received %d bytes from server: %s\n", bytesReceived, bufferReply);
+            printf("File transfer completed.\n");
+            //sum_bandwidth += ;
+            //sum_times += ;
+            //count_runs++;
+        }
+        
+        printf("Waiting for Sender response...\n");
     }
-    
-    printf("Waiting for Sender response...\n");
+
     printf("Sender sent exit message.\n");
 
     printf("-----------------------------");
