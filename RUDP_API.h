@@ -1,3 +1,22 @@
+#include <fcntl.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <resolv.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/ip_icmp.h>
+
+#include <arpa/inet.h>
+#include <stdlib.h>
+#include <strings.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+struct _rudphdr;
+typedef struct _rudphdr rudphdr;
+
 // Create RUDP socket
 int rudp_socket();
 
