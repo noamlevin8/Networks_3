@@ -7,16 +7,20 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 #define SENDER_PORT 5060
 #define SENDER_IP_ADDRESS "127.0.0.1"
 #define BUFFER_SIZE 1024
 
 int main() {
-    char* str = "";
+    char* str = "       * Statistics *        -\n";
     int count_runs = 0;
-    float sum_times = 0;
-    float sum_bandwidth = 0;
+    double sum_times = 0;
+    double sum_bandwidth = 0;
+    struct timeval stop, start;
+    double time = 0;
+    double bandwidth = 0;
 
     int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -27,7 +31,6 @@ int main() {
 
     printf("Starting Receiver...\n");
 
-    // "sockaddr_in" is the "derived" from sockaddr structure
     struct sockaddr_in senderAddress;
     memset(&senderAddress, 0, sizeof(senderAddress));
 
@@ -41,16 +44,15 @@ int main() {
 
     printf("Waiting for TCP connection...\n");
 
-    // Make a connection to the server with socket SendingSocket.
     int connectResult = connect(sock, (struct sockaddr *)&senderAddress, sizeof(senderAddress));
     if (connectResult == -1) {
         printf("connect() failed with error code : %d", errno);
-        // cleanup the socket;
         close(sock);
         return -1;
     }
 
     printf("Sender connected, beginning to receive file...\n");
+    gettimeofday(&start, NULL);
 
     // // Sends some data to server
     // char buffer[BUFFER_SIZE] = {'\0'};
@@ -82,21 +84,31 @@ int main() {
             printf("peer has closed the TCP connection prior to recv().\n");
         } else {
             //printf("received %d bytes from server: %s\n", bytesReceived, bufferReply);
+            
             printf("File transfer completed.\n");
-            //sum_bandwidth += ;
-            //sum_times += ;
-            //count_runs++;
+
+            gettimeofday(&stop, NULL);
+            time = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
+            bandwidth = bytesReceived/time;
+
+            sum_bandwidth += bandwidth;
+            sum_times += time;
+            count_runs++;
+
+            char* s = "- Run #%d Data: Time=%f ms; Speed=%f MB/s;\n", count_runs, time, bandwidth;
+            strcat(str, s);
         }
         
         printf("Waiting for Sender response...\n");
+        gettimeofday(&start, NULL);
     }
 
     printf("Sender sent exit message.\n");
 
     printf("-----------------------------");
     printf("%s\n\n", str);
-    printf("Avrage time: %f\n", sum_times/count_runs);
-    printf("Avrage bandwidth: %f\n", sum_bandwidth/count_runs);
+    printf("- Avrage time: %f ms\n", sum_times/count_runs);
+    printf("- Avrage bandwidth: %f MB/s\n", sum_bandwidth/count_runs);
     printf("-----------------------------");
 
     close(sock);
