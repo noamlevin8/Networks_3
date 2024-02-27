@@ -1,19 +1,17 @@
-#include <arpa/inet.h>
-#include <errno.h>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/time.h>
+#include "TCP_Receiver.h"
 
-#define SENDER_PORT 5060
-#define SENDER_IP_ADDRESS "127.0.0.1"
 #define BUFFER_SIZE 1024
 
-int main() {
+void get_info(int argc, char* argv[], int* port, char** algo)
+{
+        *port = atoi(argv[2]);
+        *algo = argv[4];
+}
+
+int main(int argc, char* argv[]) 
+{
+    int Receiver_Port;
+    char* CC_Algo;
     char* str = "       * Statistics *        -\n";
     int count_runs = 0;
     double sum_times = 0;
@@ -22,6 +20,8 @@ int main() {
     double time = 0;
     double bandwidth = 0;
 
+    get_info(argc, argv, &Receiver_Port, &CC_Algo);
+
     int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
     if (sock == -1) {
@@ -29,47 +29,55 @@ int main() {
         return -1;
     }
 
-    printf("Starting Receiver...\n");
-
-    struct sockaddr_in senderAddress;
-    memset(&senderAddress, 0, sizeof(senderAddress));
-
-    senderAddress.sin_family = AF_INET;
-    senderAddress.sin_port = htons(SENDER_PORT);                                              // (5001 = 0x89 0x13) little endian => (0x13 0x89) network endian (big endian)
-    int rval = inet_pton(AF_INET, (const char *)SENDER_IP_ADDRESS, &senderAddress.sin_addr);  // convert IPv4 and IPv6 addresses from text to binary form
-    if (rval <= 0) {
-        printf("inet_pton() failed");
-        return -1;
+    // Setting TCP congestion control algorithm
+    if (setsockopt(sock, IPPROTO_TCP, TCP_CONGESTION, CC_Algo, strlen(CC_Algo) + 1) == -1) 
+    {
+        perror("Setting congestion control algorithm failed");
+        close(sock);
+        exit(EXIT_FAILURE);
     }
 
-    printf("Waiting for TCP connection...\n");
+    printf("Starting Receiver...\n");
 
-    int connectResult = connect(sock, (struct sockaddr *)&senderAddress, sizeof(senderAddress));
-    if (connectResult == -1) {
-        printf("connect() failed with error code : %d", errno);
+    struct sockaddr_in ReceiverAddress;
+    memset(&ReceiverAddress, 0, sizeof(ReceiverAddress));
+
+    ReceiverAddress.sin_family = AF_INET;
+    ReceiverAddress.sin_addr.s_addr = INADDR_ANY;
+    ReceiverAddress.sin_port = htons(Receiver_Port);
+
+    // Bind the socket to the port with any IP at this port
+    if (bind(sock, (struct sockaddr *)&ReceiverAddress, sizeof(ReceiverAddress)) == -1) {
+        printf("Bind failed with error code : %d", errno);
+        // close the socket
         close(sock);
         return -1;
     }
 
+    // Listen
+    if (listen(sock, 1) == -1) {
+        printf("listen() failed with error code : %d", errno);
+        // close the socket
+        close(sock);
+        return -1;
+    }
+    printf("Waiting for TCP connection...\n");
+
+    // Accept an incoming connection
+    struct sockaddr_in SenderAddress;  
+    socklen_t SenderAddressLen = sizeof(SenderAddress);
+    memset(&SenderAddress, 0, sizeof(SenderAddress));
+    SenderAddressLen = sizeof(SenderAddress);
+
+    int sender_socket = accept(sock, (struct sockaddr *)&SenderAddress, &SenderAddressLen);
+    if (sender_socket == -1) {
+        printf("listen failed with error code : %d", errno);
+        // close the sockets
+        close(sender_socket);
+        return -1;
+    }
     printf("Sender connected, beginning to receive file...\n");
     gettimeofday(&start, NULL);
-
-    // // Sends some data to server
-    // char buffer[BUFFER_SIZE] = {'\0'};
-    // char message[] = "Hello, from the Client\n";
-    // int messageLen = strlen(message) + 1;
-    
-    // int bytesSent = send(sock, message, messageLen, 0);
-
-    // if (bytesSent == -1) {
-    //     printf("send() failed with error code : %d", errno);
-    // } else if (bytesSent == 0) {
-    //     printf("peer has closed the TCP connection prior to send().\n");
-    // } else if (bytesSent < messageLen) {
-    //     printf("sent only %d bytes from the required %d.\n", messageLen, bytesSent);
-    // } else {
-    //     printf("message was successfully sent.\n");
-    // }
     
     char bufferReply[BUFFER_SIZE] = {'\0'};
     int bytesReceived;
@@ -77,7 +85,7 @@ int main() {
     while (1)
     {  
         // Receive data from server
-        bytesReceived = recv(sock, bufferReply, BUFFER_SIZE, 0);
+        bytesReceived = recv(sender_socket, bufferReply, BUFFER_SIZE, 0);
         if (bytesReceived == -1) {
             printf("recv() failed with error code : %d", errno);
         } else if (bytesReceived == 0) {
