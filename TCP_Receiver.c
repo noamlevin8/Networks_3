@@ -12,13 +12,15 @@ int main(int argc, char* argv[])
 {
     int Receiver_Port;
     char* CC_Algo;
-    char* str = "       * Statistics *        -\n";
+    char* str = malloc(34);
+    strcpy(str, "-       * Statistics *        -\n");
     int count_runs = 0;
     double sum_times = 0;
     double sum_bandwidth = 0;
     struct timeval stop, start;
     double time = 0;
     double bandwidth = 0;
+    int opt = 1;
 
     get_info(argc, argv, &Receiver_Port, &CC_Algo);
 
@@ -33,6 +35,14 @@ int main(int argc, char* argv[])
     if (setsockopt(sock, IPPROTO_TCP, TCP_CONGESTION, CC_Algo, strlen(CC_Algo) + 1) == -1) 
     {
         perror("Setting congestion control algorithm failed");
+        close(sock);
+        exit(EXIT_FAILURE);
+    }
+
+    // Set the socket option to reuse the server's address
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
+    {
+        perror("Setting reuse failed");
         close(sock);
         exit(EXIT_FAILURE);
     }
@@ -77,38 +87,42 @@ int main(int argc, char* argv[])
         return -1;
     }
     printf("Sender connected, beginning to receive file...\n");
-    gettimeofday(&start, NULL);
     
     char bufferReply[BUFFER_SIZE] = {'\0'};
-    int bytesReceived;
+    int bytesReceived, BytesReceived;
 
     while (1)
     {  
-        // Receive data from server
-        bytesReceived = recv(sender_socket, bufferReply, BUFFER_SIZE, 0);
+        gettimeofday(&start, NULL);
+
+        while (BytesReceived < 2000000)
+        {
+            bytesReceived = recv(sender_socket, bufferReply, BUFFER_SIZE, 0);
+            BytesReceived += bytesReceived;
+        }
+        
         if (bytesReceived == -1) {
             printf("recv() failed with error code : %d", errno);
         } else if (bytesReceived == 0) {
             printf("peer has closed the TCP connection prior to recv().\n");
-        } else {
-            //printf("received %d bytes from server: %s\n", bytesReceived, bufferReply);
-            
+        } else {            
             printf("File transfer completed.\n");
 
             gettimeofday(&stop, NULL);
             time = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
-            bandwidth = bytesReceived/time;
+            bandwidth = BytesReceived/time;
 
             sum_bandwidth += bandwidth;
             sum_times += time;
             count_runs++;
 
             char* s = "- Run #%d Data: Time=%f ms; Speed=%f MB/s;\n", count_runs, time, bandwidth;
+            str = (char*)realloc(str, strlen(str)+strlen(s)+1);
             strcat(str, s);
         }
         
         printf("Waiting for Sender response...\n");
-        gettimeofday(&start, NULL);
+        BytesReceived = 0;
     }
 
     printf("Sender sent exit message.\n");
@@ -121,5 +135,6 @@ int main(int argc, char* argv[])
 
     close(sock);
     printf("Receiver end.\n");
+    free(str);
     return 0;
 }

@@ -97,7 +97,7 @@ int main(int argc, char* argv[])
         }
         free(message);
 
-        printf("1 - to resend, 0 - to exit");
+        printf("1 - to resend, 0 - to exit\n");
         scanf(" %d", &resend);
     }
     close(sender_socket);
