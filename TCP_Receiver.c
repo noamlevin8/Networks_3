@@ -98,27 +98,36 @@ int main(int argc, char* argv[])
         while (BytesReceived < 2000000)
         {
             bytesReceived = recv(sender_socket, bufferReply, BUFFER_SIZE, 0);
+            if (bytesReceived == 0 || bytesReceived == -1)
+            {
+                break;
+            }
             BytesReceived += bytesReceived;
         }
-        
+        gettimeofday(&stop, NULL);
+
+
         if (bytesReceived == -1) {
-            printf("recv() failed with error code : %d", errno);
+            //printf("recv() failed with error code : %d", errno);
+            break;
         } else if (bytesReceived == 0) {
-            printf("peer has closed the TCP connection prior to recv().\n");
+            //printf("peer has closed the TCP connection prior to recv().\n");
+            break;
         } else {            
             printf("File transfer completed.\n");
 
-            gettimeofday(&stop, NULL);
-            time = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
+            time = (stop.tv_sec - start.tv_sec) * 1000 + (stop.tv_usec - start.tv_usec) / 1000;
             bandwidth = BytesReceived/time;
 
             sum_bandwidth += bandwidth;
             sum_times += time;
             count_runs++;
 
-            char* s = "- Run #%d Data: Time=%f ms; Speed=%f MB/s;\n", count_runs, time, bandwidth;
+            char* s = (char*)malloc(100);
+            sprintf(s, "- Run #%d Data: Time =%f ms; Speed =%f MB/s;\n", count_runs, time, bandwidth);
             str = (char*)realloc(str, strlen(str)+strlen(s)+1);
             strcat(str, s);
+            free(s);
         }
         
         printf("Waiting for Sender response...\n");
@@ -127,11 +136,11 @@ int main(int argc, char* argv[])
 
     printf("Sender sent exit message.\n");
 
-    printf("-----------------------------");
+    printf("-----------------------------\n");
     printf("%s\n\n", str);
     printf("- Avrage time: %f ms\n", sum_times/count_runs);
     printf("- Avrage bandwidth: %f MB/s\n", sum_bandwidth/count_runs);
-    printf("-----------------------------");
+    printf("-----------------------------\n");
 
     close(sock);
     printf("Receiver end.\n");
