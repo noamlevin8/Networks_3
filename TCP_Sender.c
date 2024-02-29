@@ -6,7 +6,7 @@
 
 void get_info(int argc, char* argv[], char** ip, int* port, char** algo)
 {
-        //*ip = argv[2];
+        *ip = argv[2];
         *port = atoi(argv[4]);
         *algo = argv[6];
 }
@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
 {
     int Receiver_Port;
     char* CC_Algo;
-    char* Receiver_IP = "127.0.0.1";
+    char* Receiver_IP;
 
     int sender_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
