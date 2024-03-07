@@ -2,6 +2,7 @@
 
 #define BUFFER_SIZE 1024
 
+// To insert the given parameters to our variables
 void get_info(int argc, char* argv[], int* port, char** algo)
 {
         *port = atoi(argv[2]);
@@ -17,15 +18,14 @@ int main(int argc, char* argv[])
     int count_runs = 0;
     double sum_times = 0;
     double sum_bandwidth = 0;
-    struct timeval stop, start;
-    double time = 0;
+    struct timeval time;
     double bandwidth = 0;
     int opt = 1;
 
     get_info(argc, argv, &Receiver_Port, &CC_Algo);
 
+    // Creating the socket
     int sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
     if (sock == -1) {
         printf("Could not create socket : %d", errno);
         return -1;
@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
         exit(EXIT_FAILURE);
     }
 
-    // Set the socket option to reuse the server's address
+    // Set the socket option to reuse the address
     if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
     {
         perror("Setting reuse failed");
@@ -52,9 +52,9 @@ int main(int argc, char* argv[])
     struct sockaddr_in ReceiverAddress;
     memset(&ReceiverAddress, 0, sizeof(ReceiverAddress));
 
-    ReceiverAddress.sin_family = AF_INET;
-    ReceiverAddress.sin_addr.s_addr = INADDR_ANY;
-    ReceiverAddress.sin_port = htons(Receiver_Port);
+    ReceiverAddress.sin_family = AF_INET; // IPV4
+    ReceiverAddress.sin_addr.s_addr = INADDR_ANY; // Random address
+    ReceiverAddress.sin_port = htons(Receiver_Port); //Port
 
     // Bind the socket to the port with any IP at this port
     if (bind(sock, (struct sockaddr *)&ReceiverAddress, sizeof(ReceiverAddress)) == -1) {
@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    // Listen
+    // Listen with queue size of 1
     if (listen(sock, 1) == -1) {
         printf("listen() failed with error code : %d", errno);
         // close the socket
@@ -73,12 +73,11 @@ int main(int argc, char* argv[])
     }
     printf("Waiting for TCP connection...\n");
 
-    // Accept an incoming connection
     struct sockaddr_in SenderAddress;  
     socklen_t SenderAddressLen = sizeof(SenderAddress);
     memset(&SenderAddress, 0, sizeof(SenderAddress));
-    SenderAddressLen = sizeof(SenderAddress);
 
+    // Accept an incoming connection
     int sender_socket = accept(sock, (struct sockaddr *)&SenderAddress, &SenderAddressLen);
     if (sender_socket == -1) {
         printf("listen failed with error code : %d", errno);
@@ -88,50 +87,66 @@ int main(int argc, char* argv[])
     }
     printf("Sender connected, beginning to receive file...\n");
     
-    char bufferReply[BUFFER_SIZE] = {'\0'};
-    int bytesReceived, BytesReceived;
+    int bytesReceived, TotalBytesReceived, count_buffer;
+    double time_last, time_cur, total_time;
 
     while (1)
     {  
-        gettimeofday(&start, NULL);
+        TotalBytesReceived = 0;
+        bytesReceived = 0;
+        count_buffer = 0;
+        char buffer[BUFFER_SIZE] = {0};
 
-        while (BytesReceived < 2000000)
-        {
-            bytesReceived = recv(sender_socket, bufferReply, BUFFER_SIZE, 0);
+        time_last = 0;
+        total_time = 0;
+
+        while (TotalBytesReceived < 2000000)
+        {   
+            bytesReceived = recv(sender_socket, buffer, BUFFER_SIZE, 0);
+            TotalBytesReceived += bytesReceived;
+
+            gettimeofday(&time, NULL);
+            time_cur = (time.tv_sec * 1000.0) + (time.tv_usec / 1000.0);
+                        
             if (bytesReceived == 0 || bytesReceived == -1)
             {
                 break;
             }
-            BytesReceived += bytesReceived;
+
+            count_buffer++;
+            
+            if (count_buffer != 1)
+            {
+                total_time += time_cur - time_last;
+            }
+            
+            time_last = time_cur;
         }
-        gettimeofday(&stop, NULL);
 
-
-        if (bytesReceived == -1) {
-            //printf("recv() failed with error code : %d", errno);
+        if (bytesReceived == 0 || bytesReceived == -1) 
+        {
             break;
-        } else if (bytesReceived == 0) {
-            //printf("peer has closed the TCP connection prior to recv().\n");
-            break;
-        } else {            
+        } 
+        else 
+        {            
             printf("File transfer completed.\n");
 
-            time = (stop.tv_sec - start.tv_sec) * 1000 + (stop.tv_usec - start.tv_usec) / 1000;
-            bandwidth = BytesReceived/time;
-
+            bandwidth = (TotalBytesReceived / 1024.0) / (total_time);
             sum_bandwidth += bandwidth;
-            sum_times += time;
+            sum_times += total_time;
             count_runs++;
 
             char* s = (char*)malloc(100);
-            sprintf(s, "- Run #%d Data: Time =%f ms; Speed =%f MB/s;\n", count_runs, time, bandwidth);
+            sprintf(s, "- Run #%d Data: Time =%f ms; Speed =%f MB/s;\n", count_runs, total_time, bandwidth);
             str = (char*)realloc(str, strlen(str)+strlen(s)+1);
             strcat(str, s);
             free(s);
         }
         
         printf("Waiting for Sender response...\n");
-        BytesReceived = 0;
+        int n = read(sender_socket, buffer, BUFFER_SIZE);
+        if(n <= 0 || strncmp(buffer,"n",1) == 0)
+            break;
     }
 
     printf("Sender sent exit message.\n");

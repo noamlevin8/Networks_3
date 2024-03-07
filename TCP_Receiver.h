@@ -9,5 +9,6 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <netinet/tcp.h>
+#include <time.h>
 
 void get_info(int argc, char* argv[], int* port, char** algo);
