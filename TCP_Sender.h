@@ -8,8 +8,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <netinet/tcp.h>
-#include <time.h>
 #include <arpa/inet.h>
+#include <time.h>
+
 
 void get_info(int argc, char* argv[], char** ip, int* port, char** algo);
 
