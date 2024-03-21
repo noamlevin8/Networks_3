@@ -1,21 +1,37 @@
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include <resolv.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/ip_icmp.h>
-
-#include <arpa/inet.h>
-#include <stdlib.h>
-#include <strings.h>
-#include <unistd.h>
 #include <stdio.h>
-#include <sys/types.h>
-#include <sys/wait.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys.time.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <netinet/udp.h>
+#include <time.h>
 
-struct _rudphdr;
-typedef struct _rudphdr rudphdr;
+typedef struct _flags
+{
+    unsigned short int ACK :1;
+    unsigned short int SYN :1;
+    unsigned short int FIN :1;
+}flags, *p_flags;
+
+typedef struct _rudp_packet
+{
+    struct flags pocket_flags;
+    unsigned int seq;
+    unsigned short int checksum;    
+    unsigned short int length;
+    char data[BUFFER_SIZE];     
+  
+}rudp_pack, *p_rudp_pack;
+
+typedef struct _rudp_socket{
+    int socket_fd;
+    int isServer;
+    int isConnected;
+    struct sockaddr_in dest_addr;
+}RUDP_Sock, *p_RUDP_Sock;
 
 // Create RUDP socket
 int rudp_socket();

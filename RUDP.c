@@ -2,7 +2,7 @@
 
 #define PACKETSIZE 64
 
-struct _rudphdr
+struct _rudp_hdr
 {
     struct icmphdr hdr;    
     u_int16_t dstport;
