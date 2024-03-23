@@ -81,7 +81,7 @@ int rudp_accept(p_RUDP_Sock sock)
         return 0;
     }
 
-    if(bytes_received < 0)
+    if(bytes_received == -1)
     {
         perror("Receiving failed\n");
         return 0;
@@ -125,10 +125,76 @@ int rudp_accept(p_RUDP_Sock sock)
     return 0;
 }
 
-
+// 0 - problem
+// 4 - sending FIN-ACK
+// bytes_sent - success
 int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
 {
+    int bytes_sent = sendto(sock->socket_fd, pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
+    
+    if(bytes_sent == -1)
+    {
+        perror("Send error\n");
+        return 0;
+    }
 
+    rudp_pack ack_pack;
+    memset(&ack_pack, 0, sizeof(rudp_pack));
+    
+    int bytes_received = recvfrom(sock->socket_fd, &ack_pack, sizeof(rudp_pack), 0, NULL, 0);
+    int timeout = 0;
+
+    if(bytes_received == -1)
+    {
+        if(errno == EWOULDBLOCK || errno == EAGAIN)
+        {
+            return resend(sock, pack);
+        }
+        else
+        {
+            perror("Receive error\n");
+            return 0;
+        }
+    }
+
+    else if(bytes_received == 0)
+    {
+        perror("Connection closed from other side\n");
+        return 0;
+    }
+    
+    else
+    {
+        if(ack_pack.packet_flags.ACK)
+        {
+            if((((ack_pack.packet_flags.SYN | ack_pack.packet_flags.FIN) | ack_pack.packet_flags.DATA) | ack_pack.packet_flags.REACK) == 0)
+            {
+                if(ack_pack.sequence == pack->sequence + pack->length) // Checking if the sequence is right 
+                {
+                    if(calculate_checksum(&ack_pack, sizeof(rudp_pack)) == ack_pack.checksum) // Checking if the checksum is right
+                    {
+                        return bytes_sent;
+                    }
+                    printf("Checksum error\n");
+                    return 0;
+                }
+            }
+        }
+        if(ack_pack.packet_flags.FIN)
+        {
+            if((((ack_pack.packet_flags.SYN | ack_pack.packet_flags.ACK) | ack_pack.packet_flags.DATA) | ack_pack.packet_flags.REACK) == 0)
+            {
+                while(bytes_sent = send_FIN_ACK(sock, ack_pack.sequence + ack_pack.length))
+                {
+                    if(bytes_sent >= 0) // Means that we sent a FIN-ACK or that the connection is already closed
+                    {
+                        return 4;
+                    }
+                }
+            }
+        }
+        return resend(sock, pack);
+    }
 }
 
 // 0 - problem
@@ -215,7 +281,6 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
                     return 4;
                 }
             }
-            
         }
     }
     return 1;
