@@ -3,7 +3,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <string.h>
-#include <sys.time.h>
+#include <sys/time.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <netinet/udp.h>
@@ -17,6 +17,8 @@ typedef struct _flags
     unsigned short int ACK :1;
     unsigned short int SYN :1;
     unsigned short int FIN :1;
+    unsigned short int DATA :1;
+    unsigned short int REACK :1;
 }flags, *p_flags;
 
 
@@ -24,7 +26,7 @@ typedef struct _rudp_packet
 {
     unsigned short int length;
     unsigned short int checksum;
-    struct flags packet_flags;
+    struct _flags packet_flags;
     unsigned int sequence;
     char data[BUFFER_SIZE];      
 }rudp_pack, *p_rudp_pack;
