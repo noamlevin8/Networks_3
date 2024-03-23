@@ -284,3 +284,48 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
     }
     return 1;
 }
+
+// 0 - problem
+// 1 - seccess
+int rudp_disconnect(p_RUDP_Sock sock, int seq)
+{
+    p_rudp_pack fin_pack = create_packet();
+    FIN_packet(fin_pack, seq);
+
+    int bytes_sent;
+    if(bytes_sent = send_FIN(sock, fin_pack))
+    {
+        return 1;
+    }
+    return 0;
+}
+
+// 0 - problem
+// 1 - success
+int rudp_close(p_RUDP_Sock sock)
+{
+    if(sock != NULL)
+    {
+        close(sock->socket_fd);
+        free(sock);
+        printf("Socket is closed\n");
+        return 1;
+    }
+    return 0;
+}
+
+// 0 - problem
+// sock - seccess
+int create_socket()
+{
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    int opt = 1;
+
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) // Set the socket option to reuse the server's address
+    {
+        perror("setsockopt error\n");
+        return 0;
+    }
+    return sock;
+
+}
