@@ -142,7 +142,6 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
     memset(&ack_pack, 0, sizeof(rudp_pack));
     
     int bytes_received = recvfrom(sock->socket_fd, &ack_pack, sizeof(rudp_pack), 0, NULL, 0);
-    int timeout = 0;
 
     if(bytes_received == -1)
     {
