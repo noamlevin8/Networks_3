@@ -32,7 +32,7 @@ p_RUDP_Sock rudp_socket(unsigned short int listen_port, int if_server)
 
 int rudp_connect(p_RUDP_Sock sock, const char* dest_ip, unsigned short int dest_port)
 {
-    if(sock->Server || sock->Connection)
+    if(sock->Server || sock->Connection) // Connect is only a client function
     {
         return 0;
     }
@@ -51,7 +51,7 @@ int rudp_connect(p_RUDP_Sock sock, const char* dest_ip, unsigned short int dest_
     timeout.tv_sec = 0;
     timeout.tv_usec =10000;
 
-    if(setsockopt(sock->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout)) == -1)
+    if(setsockopt(sock->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout)) == -1) // Timeout
     {
         perror("setsockopt error\n");
         close(sock->socket_fd);
@@ -89,7 +89,7 @@ int rudp_accept(p_RUDP_Sock sock)
 
     if(bytes_received == 0)
     {
-        perror("Connection closed from sender's side\n");
+        perror("Connection closed from client's (sender's) side\n");
         return 2;
     }
 
@@ -117,7 +117,9 @@ int rudp_accept(p_RUDP_Sock sock)
         {
             printf("Connection established\n");
             return 1;
-        }       
+        }
+        printf("Sending SYN-ACK error\n");
+        return 0;       
     }
     printf("Not a valid packet for connection establishment\n");
     return 0;
@@ -151,7 +153,7 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
         return 0;
     }
 
-    if(pack->packet_flags.SYN)
+    if(pack->packet_flags.SYN) // There was a problem in the connection establishment
     {
         if(send_SYN_ACK(sock, pack->length))
         {
@@ -163,18 +165,17 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
         return 0;      
     }
 
-    if(pack->packet_flags.DATA)
+    if(pack->packet_flags.DATA) // Checking if it is a data packet
     {
         if((pack->packet_flags.SYN | (pack->packet_flags.ACK | pack->packet_flags.FIN)) == 0)
         {
-            if(pack->sequence == prev_pack->sequence + prev_pack->length || !prev_pack->packet_flags.DATA)
+            if(pack->sequence == prev_pack->sequence + prev_pack->length || !prev_pack->packet_flags.DATA) // Checking if the sequence is right 
             {
-                if(calculate_checksum(pack, sizeof(rudp_pack)) == pack->checksum)
+                if(calculate_checksum(pack, sizeof(rudp_pack)) == pack->checksum) // Checking if the checksum is right
                 {
-                    pack->sequence = prev_pack->sequence + pack->length;
-
-                    if(send_ACK(sock, pack->sequence))
+                    if(send_ACK(sock, pack->sequence + pack->length))
                     {
+                        copy_packet(prev_pack, pack); // The prev is now equals to the current packet 
                         return bytes_received;
                     }
                     printf("ACK error\n");
@@ -187,11 +188,11 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
             {
                 if(pack->checksum == prev_pack->checksum)
                 {
-                    pack->sequence = prev_pack->sequence + pack->length;
+                    copy_packet(prev_pack, pack);
 
-                    if(send_ACK(sock, pack->sequence))
+                    if(send_ACK(sock, pack->sequence + pack->length))
                     {
-                        prev_pack->packet_flags.REACK = 1;
+                        prev_pack->packet_flags.REACK = 1; // Now we know that the current packet is a packet that we resend an ACK on
                         return 3;
                     }
                     printf("ACK error\n");
@@ -202,14 +203,14 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
         }
     }
 
-    if(pack->packet_flags.FIN)
+    if(pack->packet_flags.FIN) // Checking if it is a FIN packet
     {
         if((pack->packet_flags.SYN | (pack->packet_flags.ACK | pack->packet_flags.DATA)) == 0)
         {
             int bytes_sent;
             while(bytes_sent = send_FIN_ACK(sock, pack->sequence + pack->length))
             {
-                if(bytes_sent == 0)
+                if(bytes_sent >= 0) // Means that we sent a FIN-ACK or that the connection is already closed
                 {
                     return 4;
                 }
