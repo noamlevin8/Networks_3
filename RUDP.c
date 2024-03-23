@@ -286,7 +286,7 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
 }
 
 // 0 - problem
-// 1 - seccess
+// 1 - success
 int rudp_disconnect(p_RUDP_Sock sock, int seq)
 {
     p_rudp_pack fin_pack = create_packet();
@@ -315,7 +315,7 @@ int rudp_close(p_RUDP_Sock sock)
 }
 
 // 0 - problem
-// sock - seccess
+// sock - success
 int create_socket()
 {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
