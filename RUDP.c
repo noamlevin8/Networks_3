@@ -39,7 +39,7 @@ int rudp_connect(p_RUDP_Sock sock, const char* dest_ip, unsigned short int dest_
 
     if(inet_pton(AF_INET, dest_ip, &sock->destination_addr.sin_addr) < 1)
     {
-        perror("inet_pton error");
+        perror("inet_pton error\n");
         close(sock->sock_fd);
         return 0;
     }
@@ -53,7 +53,7 @@ int rudp_connect(p_RUDP_Sock sock, const char* dest_ip, unsigned short int dest_
 
     if(setsockopt(sock->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout)) == -1)
     {
-        perror("setsockopt error");
+        perror("setsockopt error\n");
         close(sock->socket_fd);
         return 0;
     }
@@ -64,3 +64,59 @@ int rudp_connect(p_RUDP_Sock sock, const char* dest_ip, unsigned short int dest_
     }
     return 1;
 }
+
+
+int rudp_accept(p_RUDP_Sock sock)
+{
+    p_rudp_pack recv_pack = create_packet();
+    memset(recv_pack, 0, sizeof(rudp_pack));
+    int bytes_received = recvfrom(sock->socket_fd, recv_pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, &dest_addr_len);
+
+    if(!sock->Server)
+    {
+        printf("This function is only valid to servers\n");
+        return 0;
+    }
+
+    if(bytes_received < 0)
+    {
+        perror("Receiving failed\n");
+        return 0;
+    }
+
+    if(bytes_received == 0)
+    {
+        perror("Connection closed from sender's side\n");
+        return 0;
+    }
+
+    if(recv_pack->packet_flags.SYN)
+    {
+        if((recv_pack->packet_flags.ACK | recv_pack->packet_flags.FIN) != 0)
+        {
+            printf("Not a valid packet for connection establishment\n");
+            return 0;
+        }
+
+        if(recv_pack->sequence != 0)
+        {
+            printf("Not a valid sequence number for connection establishment\n");
+            return 0;
+        }
+
+        if(calculate_checksum(recv_pack, sizeof(rudp_pack)) != recv_pack->checksum)
+        {
+            printf("Checksum error\n");
+            return 0;
+        }
+
+        if(send_SYN_ACK(sock, recv_pack->length))
+        {
+            printf("Connection established\n");
+            return 1;
+        }       
+    }
+    printf("Not a valid packet for connection establishment\n");
+    return 0;
+}
+

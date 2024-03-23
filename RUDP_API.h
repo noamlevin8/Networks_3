@@ -24,7 +24,7 @@ typedef struct _rudp_packet
 {
     unsigned short int length;
     unsigned short int checksum;
-    struct flags pocket_flags;
+    struct flags packet_flags;
     unsigned int sequence;
     char data[BUFFER_SIZE];      
 }rudp_pack, *p_rudp_pack;
