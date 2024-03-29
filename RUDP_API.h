@@ -88,7 +88,7 @@ void ACK_packet(p_rudp_pack pack, int seq);
 void FIN_packet(p_rudp_pack pack, int seq);
 
 
-// Copying one packet to another
+// Copying one packet to another (copy pack_2 to pack_1)
 void copy_packet(p_rudp_pack pack_1, p_rudp_pack pack_2);
 
 

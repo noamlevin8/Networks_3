@@ -32,8 +32,15 @@ p_RUDP_Sock rudp_socket(unsigned short int listen_port, int if_server)
 
 int rudp_connect(p_RUDP_Sock sock, const char* dest_ip, unsigned short int dest_port)
 {
+    if (sock == NULL)
+    {
+        printf("RUDP Socket is null\n");
+        return 0;
+    }
+    
     if(sock->Server || sock->Connection) // Connect is only a client function
     {
+        printf("RUDP Socket is a server or is already connected\n");
         return 0;
     }
 
@@ -70,6 +77,12 @@ int rudp_connect(p_RUDP_Sock sock, const char* dest_ip, unsigned short int dest_
 // 2 - connection closed
 int rudp_accept(p_RUDP_Sock sock)
 {
+    if(sock == NULL)
+    {
+        printf("RUDP Socket is null\n");
+        return 0;
+    }
+
     p_rudp_pack recv_pack = create_packet();
     memset(recv_pack, 0, sizeof(rudp_pack));
     size_t dest_addr_len = sizeof(struct sockaddr);
@@ -107,7 +120,10 @@ int rudp_accept(p_RUDP_Sock sock)
             return 0;
         }
 
-        if(calculate_checksum(recv_pack, sizeof(rudp_pack)) != recv_pack->checksum)
+        unsigned short int check = recv_pack->checksum;
+        recv_pack->checksum = 0;
+
+        if(calculate_checksum(recv_pack, sizeof(rudp_pack)) != check)
         {
             printf("Checksum error\n");
             return 0;
@@ -130,6 +146,12 @@ int rudp_accept(p_RUDP_Sock sock)
 // bytes_sent - success
 int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
 {
+    if (sock == NULL)
+    {
+        printf("RUDP Socket is null\n");
+        return 0;
+    }
+
     int bytes_sent = sendto(sock->socket_fd, pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
     
     if(bytes_sent == -1)
@@ -170,7 +192,10 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
             {
                 if(ack_pack.sequence == pack->sequence + pack->length) // Checking if the sequence is right 
                 {
-                    if(calculate_checksum(&ack_pack, sizeof(rudp_pack)) == ack_pack.checksum) // Checking if the checksum is right
+                    unsigned short int check = ack_pack.checksum;
+                    ack_pack.checksum = 0;
+
+                    if(calculate_checksum(&ack_pack, sizeof(rudp_pack)) == check) // Checking if the checksum is right
                     {
                         return bytes_sent;
                     }
@@ -204,6 +229,12 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
 // bytes_received - success
 int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
 {
+    if (sock == NULL || pack == NULL)
+    {
+        printf("RUDP Socket or RUDP Packet is null\n");
+        return 0;
+    }
+    
     int bytes_received = recvfrom(sock->socket_fd, pack, sizeof(rudp_pack), 0, NULL, 0);
     
     if(bytes_received < 0)
@@ -234,13 +265,26 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
     {
         if((pack->packet_flags.SYN | (pack->packet_flags.ACK | pack->packet_flags.FIN)) == 0)
         {
+            if (prev_pack == NULL)
+            {
+                printf("Prev packet is null\n");
+                return 0;
+            }
+            
             if(pack->sequence == prev_pack->sequence + prev_pack->length || !prev_pack->packet_flags.DATA) // Checking if the sequence is right 
             {
-                if(calculate_checksum(pack, sizeof(rudp_pack)) == pack->checksum) // Checking if the checksum is right
+                unsigned short int check = pack->checksum;
+                pack->checksum = 0;
+                prev_pack->packet_flags.REACK = 0;
+
+                if(calculate_checksum(pack, sizeof(rudp_pack)) == check) // Checking if the checksum is right
                 {
-                    if(send_ACK(sock, pack->sequence + pack->length))
+                    pack->checksum = check;
+                    copy_packet(prev_pack, pack); // The prev is now equals to the current packet
+                    pack->sequence += pack->length;
+
+                    if(send_ACK(sock, pack->sequence))
                     {
-                        copy_packet(prev_pack, pack); // The prev is now equals to the current packet 
                         return bytes_received;
                     }
                     printf("ACK error\n");
@@ -253,15 +297,19 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
             {
                 if(pack->checksum == prev_pack->checksum)
                 {
-                    copy_packet(prev_pack, pack);
+                    if (prev_pack->packet_flags.DATA == 1)
+                    {                   
+                        copy_packet(prev_pack, pack);
+                        pack->sequence = prev_pack->sequence + prev_pack->length;
 
-                    if(send_ACK(sock, pack->sequence + pack->length))
-                    {
-                        prev_pack->packet_flags.REACK = 1; // Now we know that the current packet is a packet that we resend an ACK on
-                        return 3;
-                    }
-                    printf("ACK error\n");
-                    return 0;                    
+                        if(send_ACK(sock, pack->sequence))
+                        {
+                            prev_pack->packet_flags.REACK = 1; // Now we know that the current packet is a packet that we resent an ACK on
+                            return 3;
+                        }
+                        printf("ACK error\n");
+                        return 0;  
+                    }                  
                 }
             }
             
@@ -289,6 +337,12 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
 // 1 - success
 int rudp_disconnect(p_RUDP_Sock sock, int seq)
 {
+    if (sock == NULL)
+    {
+        printf("RUDP Socket is null\n");
+        return 0;
+    }
+
     p_rudp_pack fin_pack = create_packet();
     FIN_packet(fin_pack, seq);
 
@@ -304,14 +358,16 @@ int rudp_disconnect(p_RUDP_Sock sock, int seq)
 // 1 - success
 int rudp_close(p_RUDP_Sock sock)
 {
-    if(sock != NULL)
+    if(sock == NULL)
     {
-        close(sock->socket_fd);
-        free(sock);
-        printf("Socket is closed\n");
-        return 1;
+        printf("RUDP Socket is null\n");
+        return 0;
     }
-    return 0;
+
+    close(sock->socket_fd);
+    free(sock);
+    printf("Socket is closed\n");
+    return 1;
 }
 
 // 0 - problem
@@ -327,5 +383,93 @@ int create_socket()
         return 0;
     }
     return sock;
+}
+
+// NULL - problem
+// pack - success
+p_rudp_pack create_packet()
+{
+    p_rudp_pack pack = (p_rudp_pack)malloc(sizeof(rudp_pack));
+    if(pack == NULL)
+    {
+        printf("Allocation problem\n");
+        return NULL;
+    }
+
+    memset(pack, 0, sizeof(rudp_pack));
+    return pack;
+}
+
+//
+//
+void data_packet(p_rudp_pack pack, int seq, char* data)
+{
+    if(pack == NULL)
+    {
+        printf("RUDP Packet is null\n");
+        return;
+    }
+
+    memset(pack, 0, sizeof(rudp_pack));
+    pack->length = BUFFER_SIZE;
+    pack->packet_flags.DATA = 1;
+    pack->sequence = seq;
+    strncpy(pack->data, data, BUFFER_SIZE);
+    pack->checksum = calculate_checksum(pack, sizeof(rudp_pack));
+}
+
+//
+//
+void ACK_packet(p_rudp_pack pack, int seq)
+{
+    if(pack == NULL)
+    {
+        printf("RUDP Packet is null\n");
+        return;
+    }
+
+    memset(pack, 0, sizeof(rudp_pack));
+    pack->packet_flags.ACK = 1;
+    pack->sequence = seq;
+    pack->checksum = calculate_checksum(pack, sizeof(rudp_pack));
+}
+
+//
+//
+void FIN_packet(p_rudp_pack pack, int seq)
+{
+    if(pack == NULL)
+    {
+        printf("RUDP Packet is null\n");
+        return;
+    }
+
+    memset(pack, 0, sizeof(rudp_pack));
+    pack->packet_flags.FIN = 1;
+    pack->sequence = seq;
+    pack->checksum = calculate_checksum(pack, sizeof(rudp_pack));
+}
+
+//
+//
+void copy_packet(p_rudp_pack pack_1, p_rudp_pack pack_2)
+{
+    if(pack_1 == NULL || pack_2 == NULL)
+    {
+        printf("RUDP Packet 1 or 2 is null\n");
+        return;
+    }
+
+    pack_1->length = pack_2->length;
+    pack_1->checksum = pack_2->checksum;
+    pack_1->packet_flags.DATA = pack_2->packet_flags.DATA;
+    pack_1->sequence = pack_2->sequence;
+    strncpy(pack_1->data, pack_2->data, pack_2->length);
+}
+
+//
+//
+int handshake(p_RUDP_Sock sock)
+{
 
 }
