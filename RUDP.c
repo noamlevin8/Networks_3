@@ -556,8 +556,111 @@ int handshake(p_RUDP_Sock sock)
     }
 }
 
-//
+// 0 - problem
+// 2 - received FIN
+// 3 - over max tries
+// bytes_sent - success
 int packet_resend(p_RUDP_Sock sock, p_rudp_pack pack)
 {
-    
+    rudp_pack recv_pack;
+    memset(&recv_pack, 0, sizeof(rudp_pack));
+
+    int i, timeout = 0, bytes_sent, bytes_received;
+    for (i = 0; i < MAX_TRIES; i++)
+    {
+        bytes_sent = sendto(sock->socket_fd, pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
+
+        // Checking if the message was sent or if no data was sent
+        if (bytes_sent <= 0)
+        {
+            perror("Send error\n");
+            return 0;
+        }
+
+        bytes_received = recvfrom(sock->socket_fd, &recv_pack, sizeof(rudp_pack), 0, NULL, 0);
+
+        if(bytes_received == -1)
+        {
+            if(errno == EWOULDBLOCK || errno == EAGAIN)
+            {
+                timeout = 1;
+            }
+            else
+            {
+                perror("Receive error\n");
+                return 0;
+            }
+        }
+
+        else if(bytes_received == 0)
+        {
+            perror("Socket is closed from other side\n");
+            return 0;
+        }
+
+        if(!timeout)
+        {
+            if(recv_pack.packet_flags.ACK)
+            {
+                if((((recv_pack.packet_flags.SYN | recv_pack.packet_flags.FIN) | recv_pack.packet_flags.DATA) | recv_pack.packet_flags.REACK) == 0)
+                {
+                    if(recv_pack.sequence == pack->sequence + pack->length)
+                    {
+                        unsigned short int check = recv_pack.checksum;
+                        recv_pack.checksum = 0;
+
+                        if(calculate_checksum(&recv_pack, sizeof(rudp_pack)) == check)
+                        {
+                            return bytes_sent;
+                        }
+                        printf("Checksum error\n");
+                        return 0;
+                    }
+                }
+            }
+
+            else if(recv_pack.packet_flags.ACK & recv_pack.packet_flags.SYN)
+            {
+                if(((recv_pack.packet_flags.FIN | recv_pack.packet_flags.DATA) | recv_pack.packet_flags.REACK) == 0)
+                {
+                    if(recv_pack.sequence == pack->sequence + pack->length)
+                    {
+                        unsigned short int check = recv_pack.checksum;
+                        recv_pack.checksum = 0;
+
+                        if(calculate_checksum(&recv_pack, sizeof(rudp_pack)) == check)
+                        {
+                            return bytes_sent;
+                        }
+                        printf("Checksum error\n");
+                        return 0;
+                    }
+                }
+            }
+
+            else if(recv_pack.packet_flags.FIN)
+            {
+                if((((recv_pack.packet_flags.SYN | recv_pack.packet_flags.ACK) | recv_pack.packet_flags.DATA) | recv_pack.packet_flags.REACK) == 0)
+                {
+                    return 2;
+                }
+            }
+
+            else if(recv_pack.packet_flags.FIN & recv_pack.packet_flags.ACK)
+            {
+                if(((recv_pack.packet_flags.SYN | recv_pack.packet_flags.DATA) | recv_pack.packet_flags.REACK) == 0)
+                {
+                    return bytes_sent;
+                }
+            }
+        }
+    }
+    return 3;
+}
+
+//
+//
+int send_SYN_ACK(p_RUDP_Sock sock, int seq)
+{
+
 }
