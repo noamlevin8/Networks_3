@@ -1,7 +1,8 @@
 #include "RUDP_API.h"
 
 
-
+// NULL - problem
+// sock - success
 p_RUDP_Sock rudp_socket(unsigned short int listen_port, int if_server)
 {
     p_RUDP_Sock sock = (p_RUDP_Sock)malloc(sizeof(RUDP_Sock));
@@ -29,7 +30,8 @@ p_RUDP_Sock rudp_socket(unsigned short int listen_port, int if_server)
     return sock;
 }
 
-
+// 0 - problem
+// 1 - success
 int rudp_connect(p_RUDP_Sock sock, const char* dest_ip, unsigned short int dest_port)
 {
     if (sock == NULL)
@@ -84,9 +86,18 @@ int rudp_accept(p_RUDP_Sock sock)
     }
 
     p_rudp_pack recv_pack = create_packet();
+
+    if(recv_pack == NULL)
+    {
+        perror("Problem creating recv packet\n");
+        return 0;
+    }
+
     memset(recv_pack, 0, sizeof(rudp_pack));
     size_t dest_addr_len = sizeof(struct sockaddr);
-    int bytes_received = recvfrom(sock->socket_fd, recv_pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, &dest_addr_len);
+
+    int bytes_received;
+    bytes_received = recvfrom(sock->socket_fd, recv_pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, &dest_addr_len);
 
     if(!sock->Server)
     {
@@ -142,7 +153,8 @@ int rudp_accept(p_RUDP_Sock sock)
 }
 
 // 0 - problem
-// 4 - sending FIN-ACK
+// 2 - sending FIN-ACK
+// packet resend - timeout or need to resend a packet
 // bytes_sent - success
 int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
 {
@@ -152,7 +164,8 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
         return 0;
     }
 
-    int bytes_sent = sendto(sock->socket_fd, pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
+    int bytes_sent;
+    bytes_sent = sendto(sock->socket_fd, pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
     
     if(bytes_sent <= 0)
     {
@@ -163,7 +176,8 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
     rudp_pack ack_pack;
     memset(&ack_pack, 0, sizeof(rudp_pack));
     
-    int bytes_received = recvfrom(sock->socket_fd, &ack_pack, sizeof(rudp_pack), 0, NULL, 0);
+    int bytes_received;
+    bytes_received = recvfrom(sock->socket_fd, &ack_pack, sizeof(rudp_pack), 0, NULL, 0);
 
     if(bytes_received == -1)
     {
@@ -208,11 +222,14 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
         {
             if((((ack_pack.packet_flags.SYN | ack_pack.packet_flags.ACK) | ack_pack.packet_flags.DATA) | ack_pack.packet_flags.REACK) == 0)
             {
-                while(bytes_sent = send_FIN_ACK(sock, ack_pack.sequence + ack_pack.length))
+                int i;
+                for(i = 0; i < MAX_TRIES; i++)
                 {
+                    bytes_sent = send_FIN_ACK(sock, ack_pack.sequence + ack_pack.length);
+
                     if(bytes_sent >= 0) // Means that we sent a FIN-ACK or that the connection is already closed
                     {
-                        return 4;
+                        return 2;
                     }
                 }
             }
@@ -222,10 +239,11 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
 }
 
 // 0 - problem
-// 1 - nothing to bo done
+// 1 - nothing to be done
 // 2 - resending SYN-ACK
 // 3 - resending ACK
 // 4 - sending FIN-ACK
+// 5 - too many tries to send FIN-ACK
 // bytes_received - success
 int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
 {
@@ -235,7 +253,8 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
         return 0;
     }
     
-    int bytes_received = recvfrom(sock->socket_fd, pack, sizeof(rudp_pack), 0, NULL, 0);
+    int bytes_received;
+    bytes_received = recvfrom(sock->socket_fd, pack, sizeof(rudp_pack), 0, NULL, 0);
     
     if(bytes_received == -1)
     {
@@ -311,8 +330,7 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
                         return 0;  
                     }                  
                 }
-            }
-            
+            } 
         }
     }
 
@@ -320,14 +338,17 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
     {
         if((pack->packet_flags.SYN | (pack->packet_flags.ACK | pack->packet_flags.DATA)) == 0)
         {
-            int bytes_sent;
-            while(bytes_sent = send_FIN_ACK(sock, pack->sequence + pack->length))
+            int bytes_sent, i;
+            for(i = 0; i < MAX_TRIES; i++)
             {
+                bytes_sent = send_FIN_ACK(sock, pack->sequence + pack->length);
+                
                 if(bytes_sent >= 0) // Means that we sent a FIN-ACK or that the connection is already closed
                 {
                     return 4;
                 }
             }
+            return 5;
         }
     }
     return 1;
@@ -343,11 +364,18 @@ int rudp_disconnect(p_RUDP_Sock sock, int seq)
         return 0;
     }
 
-    p_rudp_pack fin_pack = create_packet();
-    FIN_packet(fin_pack, seq);
+    p_rudp_pack FIN_pack = create_packet();
+
+    if(FIN_pack == NULL)
+    {
+        perror("Problem creating FIN packet\n");
+        return 0;
+    }
+
+    FIN_packet(FIN_pack, seq);
 
     int bytes_sent;
-    if(bytes_sent = send_FIN(sock, fin_pack))
+    if(bytes_sent = send_FIN(sock, FIN_pack))
     {
         return 1;
     }
@@ -377,7 +405,7 @@ int create_socket()
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     int opt = 1;
 
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) // Set the socket option to reuse the server's address
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) // Set the socket option to reuse the address
     {
         perror("setsockopt error\n");
         return 0;
@@ -472,6 +500,12 @@ int handshake(p_RUDP_Sock sock)
     rudp_pack recv_pack;
     p_rudp_pack SYN_pack = create_packet();
 
+    if(SYN_pack == NULL)
+    {
+        perror("Problem creating SYN packet\n");
+        return 0;
+    }
+
     memset(&recv_pack, 0, sizeof(rudp_pack));
     memset(SYN_pack, 0, sizeof(rudp_pack));
 
@@ -486,6 +520,7 @@ int handshake(p_RUDP_Sock sock)
     if (bytes_sent <= 0)
     {
         perror("Send error\n");
+        free(SYN_pack);
         return 0;
     }
 
@@ -535,6 +570,7 @@ int handshake(p_RUDP_Sock sock)
                         return 1;
                     }
                     printf("Checksum error\n");
+                    free(SYN_pack);
                     return 0;
                 }
             }
@@ -548,6 +584,7 @@ int handshake(p_RUDP_Sock sock)
         if(bytes_sent == -1)
         {
             printf("Handshake incompleted from server's (Receiver's) side\n");
+            free(SYN_pack);
             return 0;
         }
 
@@ -663,6 +700,13 @@ int packet_resend(p_RUDP_Sock sock, p_rudp_pack pack)
 int send_SYN_ACK(p_RUDP_Sock sock, int seq)
 {
     p_rudp_pack SYN_ACK_pack = create_packet();
+
+    if(SYN_ACK_pack == NULL)
+    {
+        perror("Problem creating SYN-ACK packet\n");
+        return 0;
+    }
+
     ACK_packet(SYN_ACK_pack, seq);
 
     SYN_ACK_pack->packet_flags.SYN = 1;
@@ -689,6 +733,13 @@ int send_SYN_ACK(p_RUDP_Sock sock, int seq)
 int send_ACK(p_RUDP_Sock sock, int seq)
 {
     p_rudp_pack ACK_pack = create_packet();
+
+    if(ACK_pack == NULL)
+    {
+        perror("Problem creating ACK packet\n");
+        return 0;
+    }
+
     ACK_packet(ACK_pack, seq);
 
     int bytes_sent;
@@ -710,6 +761,13 @@ int send_ACK(p_RUDP_Sock sock, int seq)
 int send_FIN_ACK(p_RUDP_Sock sock, int seq)
 {
     p_rudp_pack FIN_ACK_pack = create_packet();
+
+    if(FIN_ACK_pack == NULL)
+    {
+        perror("Problem creating FIN-ACK packet\n");
+        return 0;
+    }
+
     ACK_packet(FIN_ACK_pack, seq);
 
     FIN_ACK_pack->packet_flags.FIN = 1;
@@ -744,4 +802,11 @@ int send_FIN(p_RUDP_Sock sock, p_rudp_pack pack)
     }
 
     return 1;
+}
+
+//
+//
+unsigned short int calculate_checksum(void* data, unsigned int bytes)
+{
+
 }
