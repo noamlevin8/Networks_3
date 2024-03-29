@@ -154,7 +154,7 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
 
     int bytes_sent = sendto(sock->socket_fd, pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
     
-    if(bytes_sent == -1)
+    if(bytes_sent <= 0)
     {
         perror("Send error\n");
         return 0;
@@ -169,7 +169,7 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
     {
         if(errno == EWOULDBLOCK || errno == EAGAIN)
         {
-            return resend(sock, pack);
+            return packet_resend(sock, pack);
         }
         else
         {
@@ -217,7 +217,7 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
                 }
             }
         }
-        return resend(sock, pack);
+        return packet_resend(sock, pack);
     }
 }
 
@@ -237,7 +237,7 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
     
     int bytes_received = recvfrom(sock->socket_fd, pack, sizeof(rudp_pack), 0, NULL, 0);
     
-    if(bytes_received < 0)
+    if(bytes_received == -1)
     {
         perror("Receiving failed\n");
         return 0;
@@ -400,8 +400,7 @@ p_rudp_pack create_packet()
     return pack;
 }
 
-//
-//
+
 void data_packet(p_rudp_pack pack, int seq, char* data)
 {
     if(pack == NULL)
@@ -418,8 +417,7 @@ void data_packet(p_rudp_pack pack, int seq, char* data)
     pack->checksum = calculate_checksum(pack, sizeof(rudp_pack));
 }
 
-//
-//
+
 void ACK_packet(p_rudp_pack pack, int seq)
 {
     if(pack == NULL)
@@ -434,8 +432,7 @@ void ACK_packet(p_rudp_pack pack, int seq)
     pack->checksum = calculate_checksum(pack, sizeof(rudp_pack));
 }
 
-//
-//
+
 void FIN_packet(p_rudp_pack pack, int seq)
 {
     if(pack == NULL)
@@ -450,8 +447,7 @@ void FIN_packet(p_rudp_pack pack, int seq)
     pack->checksum = calculate_checksum(pack, sizeof(rudp_pack));
 }
 
-//
-//
+
 void copy_packet(p_rudp_pack pack_1, p_rudp_pack pack_2)
 {
     if(pack_1 == NULL || pack_2 == NULL)
@@ -467,9 +463,101 @@ void copy_packet(p_rudp_pack pack_1, p_rudp_pack pack_2)
     strncpy(pack_1->data, pack_2->data, pack_2->length);
 }
 
-//
-//
+// 0 - problem
+// 1 - success
+// bytes_sent - successful resend SYN
 int handshake(p_RUDP_Sock sock)
 {
+    // Sending the SYN packet
+    rudp_pack recv_pack;
+    p_rudp_pack SYN_pack = create_packet();
 
+    memset(&recv_pack, 0, sizeof(rudp_pack));
+    memset(SYN_pack, 0, sizeof(rudp_pack));
+
+    SYN_pack->packet_flags.SYN = 1;
+    SYN_pack->checksum = calculate_checksum(SYN_pack, sizeof(rudp_pack));
+
+    int bytes_sent;
+    bytes_sent = sendto(sock->socket_fd, SYN_pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
+
+
+    // Checking if the message was sent or if no data was sent
+    if (bytes_sent <= 0)
+    {
+        perror("Send error\n");
+        return 0;
+    }
+
+    printf("Sent a handshake request to the Receiver\n");
+    printf("Waiting for the Receiver response\n");
+
+
+    int bytes_received, timeout = 0;
+    bytes_received = recvfrom(sock->socket_fd, &recv_pack, sizeof(rudp_pack), 0, NULL, 0);
+
+    if(bytes_received == -1)
+    {
+        if(errno == EWOULDBLOCK || errno == EAGAIN)
+        {
+            timeout = 1;
+        }
+        else
+        {
+            perror("Receive error\n");
+            free(SYN_pack);
+            return 0;
+        }
+    }
+
+    else if(bytes_received == 0)
+    {
+        perror("Socket is closed from other side\n");
+        free(SYN_pack);
+        return 0;
+    }
+
+    else
+    {
+        if(recv_pack.packet_flags.SYN & recv_pack.packet_flags.ACK)
+        {
+            if(((recv_pack.packet_flags.FIN | recv_pack.packet_flags.DATA) | recv_pack.packet_flags.REACK) == 0)
+            {
+                if(recv_pack.sequence == 0)
+                {
+                    unsigned short int check = recv_pack.checksum;
+                    recv_pack.checksum = 0;
+
+                    if(calculate_checksum(&recv_pack, sizeof(rudp_pack)) == check)
+                    {
+                        printf("Connection established\n");
+                        free(SYN_pack);
+                        return 1;
+                    }
+                    printf("Checksum error\n");
+                    return 0;
+                }
+            }
+        }
+    }
+
+    if(timeout)
+    {
+        bytes_sent = packet_resend(sock, SYN_pack);
+        //
+        if(bytes_sent == -1)
+        {
+            printf("Handshake incompleted from server's (Receiver's) side\n");
+            return 0;
+        }
+
+        free(SYN_pack);
+        return bytes_sent;
+    }
+}
+
+//
+int packet_resend(p_RUDP_Sock sock, p_rudp_pack pack)
+{
+    
 }
