@@ -658,9 +658,90 @@ int packet_resend(p_RUDP_Sock sock, p_rudp_pack pack)
     return 3;
 }
 
-//
-//
+// 0 - problem
+// 1 - success
 int send_SYN_ACK(p_RUDP_Sock sock, int seq)
 {
+    p_rudp_pack SYN_ACK_pack = create_packet();
+    ACK_packet(SYN_ACK_pack, seq);
 
+    SYN_ACK_pack->packet_flags.SYN = 1;
+    SYN_ACK_pack->checksum = 0;
+
+    SYN_ACK_pack->checksum = calculate_checksum(SYN_ACK_pack, sizeof(rudp_pack));
+
+    int bytes_sent;
+    bytes_sent = sendto(sock->socket_fd, SYN_ACK_pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
+
+    if(bytes_sent == -1)
+    {
+        perror("Send error\n");
+        free(SYN_ACK_pack);
+        return 0;
+    }
+
+    free(SYN_ACK_pack);
+    return 1;
+}
+
+// 0 - problem
+// 1 - success
+int send_ACK(p_RUDP_Sock sock, int seq)
+{
+    p_rudp_pack ACK_pack = create_packet();
+    ACK_packet(ACK_pack, seq);
+
+    int bytes_sent;
+    bytes_sent = sendto(sock->socket_fd, ACK_pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
+
+    if(bytes_sent == -1)
+    {
+        perror("Send error\n");
+        free(ACK_pack);
+        return 0;
+    }
+
+    free(ACK_pack);
+    return 1;
+}
+
+// 0 - problem
+// 1 - success
+int send_FIN_ACK(p_RUDP_Sock sock, int seq)
+{
+    p_rudp_pack FIN_ACK_pack = create_packet();
+    ACK_packet(FIN_ACK_pack, seq);
+
+    FIN_ACK_pack->packet_flags.FIN = 1;
+    FIN_ACK_pack->checksum = 0;
+
+    FIN_ACK_pack->checksum = calculate_checksum(FIN_ACK_pack, sizeof(rudp_pack));
+
+    int bytes_sent;
+    bytes_sent = sendto(sock->socket_fd, FIN_ACK_pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, sizeof(struct sockaddr));
+
+    if(bytes_sent == -1)
+    {
+        perror("Send error\n");
+        free(FIN_ACK_pack);
+        return 0;
+    }
+
+    free(FIN_ACK_pack);
+    return 1;
+}
+
+// 0 - problem
+// 1 - success
+int send_FIN(p_RUDP_Sock sock, p_rudp_pack pack)
+{
+    int bytes_sent;
+    bytes_sent = packet_resend(sock, pack);
+
+    if(bytes_sent <= 0)
+    {
+        return 0;
+    }
+
+    return 1;
 }
