@@ -17,6 +17,7 @@ p_RUDP_Sock rudp_socket(unsigned short int listen_port, int if_server)
     
     if(!sock_fd)
     {
+        free(sock);
         printf("Problem creating socket\n");
         return NULL;
     }
@@ -154,7 +155,9 @@ int rudp_accept(p_RUDP_Sock sock)
 
 // 0 - problem
 // 2 - sending FIN-ACK
-// packet resend - timeout or need to resend a packet
+// packet resend - timeout or need to resend a packet:
+// 3 - received FIN
+// 4 - over max tries
 // bytes_sent - success
 int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
 {
@@ -384,18 +387,17 @@ int rudp_disconnect(p_RUDP_Sock sock, int seq)
 
 // 0 - problem
 // 1 - success
-int rudp_close(p_RUDP_Sock sock)
+void rudp_close(p_RUDP_Sock sock)
 {
     if(sock == NULL)
     {
-        printf("RUDP Socket is null\n");
-        return 0;
+        printf("RUDP Socket is already null\n");
+        return;
     }
 
     close(sock->socket_fd);
     free(sock);
     printf("Socket is closed\n");
-    return 1;
 }
 
 // 0 - problem
@@ -594,8 +596,8 @@ int handshake(p_RUDP_Sock sock)
 }
 
 // 0 - problem
-// 2 - received FIN
-// 3 - over max tries
+// 3 - received FIN
+// 4 - over max tries
 // bytes_sent - success
 int packet_resend(p_RUDP_Sock sock, p_rudp_pack pack)
 {
@@ -679,7 +681,7 @@ int packet_resend(p_RUDP_Sock sock, p_rudp_pack pack)
             {
                 if((((recv_pack.packet_flags.SYN | recv_pack.packet_flags.ACK) | recv_pack.packet_flags.DATA) | recv_pack.packet_flags.REACK) == 0)
                 {
-                    return 2;
+                    return 3;
                 }
             }
 
@@ -692,7 +694,7 @@ int packet_resend(p_RUDP_Sock sock, p_rudp_pack pack)
             }
         }
     }
-    return 3;
+    return 4;
 }
 
 // 0 - problem

@@ -10,6 +10,8 @@
 #include <time.h>
 
 #define BUFFER_SIZE 1024
+#define MAX_TRIES 10
+#define DATA_SIZE 2000000
 
 
 typedef struct _flags
@@ -66,7 +68,8 @@ int rudp_disconnect(p_RUDP_Sock sock, int seq);
 
 
 // Close the socket and free all the allocated memory
-int rudp_close(p_RUDP_Sock sock); 
+void rudp_close(p_RUDP_Sock sock); 
+
 
 // 
 int create_socket();
@@ -85,7 +88,7 @@ void ACK_packet(p_rudp_pack pack, int seq);
 
 
 // Creating a FIN packet  
-void FIN_packet(p_rudp_pack pack, int seq);
+//void FIN_packet(p_rudp_pack pack, int seq);
 
 
 // Copying one packet to another (copy pack_2 to pack_1)
