@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
         pack = create_packet();
     }
     
-    int resend = 1, total_bytes_sent = 0;
+    int resend = 1, total_bytes_sent = 0, if_break = 0;
 
     while (resend)
     {
@@ -72,6 +72,7 @@ int main(int argc, char* argv[])
 
             if(!bytes_sent)
             {
+                if_break = 1;
                 break;
             }
 
@@ -83,7 +84,29 @@ int main(int argc, char* argv[])
 
             data_packet(pack, pack->sequence, data + pack->sequence);//
         }
-        
+
+        if(!if_break)
+        {
+            printf("File was successfully sent.\n");
+        }
+        else
+        {
+            printf("File was not successfully sent.\n");
+        }
+
+        free(data);
+
+        printf("1 - to resend, 0 - to exit\n");
+        scanf(" %d", &resend); 
     }
-    
+
+    if(!if_break)
+    {
+        rudp_disconnect(sock, pack->sequence);
+        printf("Connection closed\n");
+    }
+
+    free(pack);
+    rudp_close(sock);
+    return 0;
 }
