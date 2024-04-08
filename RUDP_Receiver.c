@@ -29,4 +29,137 @@ int main(int argc, char* argv[])
         rudp_close(sock);
         return -1;
     }
+
+    printf("Waiting for TCP connection...\n");
+
+    int accept = rudp_accept(sock);
+
+    while (accept != 1)
+    {
+        if(accept == 2) // Connection closed
+        {
+            return -1;
+        }
+
+        accept = rudp_accept(sock);
+    }
+    
+    printf("Sender connected, beginning to receive file...\n");
+    
+    int bytesReceived, TotalBytesReceived, count_buffer, if_break = 0;
+    double time_last, time_cur, total_time;
+    int count_runs = 0;
+    double sum_times = 0;
+    double sum_bandwidth = 0;
+    struct timeval time;
+    double bandwidth = 0;
+    p_rudp_pack pack = create_packet();
+    p_rudp_pack prev_pack = create_packet();
+
+    while (1)
+    {  
+        TotalBytesReceived = 0;
+        bytesReceived = 0;
+        count_buffer = 0;
+        char buffer[BUFFER_SIZE] = {0};
+
+        time_last = 0;
+        total_time = 0;
+
+        while (TotalBytesReceived < DATA_SIZE)
+        {   
+            bytesReceived = rudp_recv(sock, pack, prev_pack);
+
+            gettimeofday(&time, NULL);
+            time_cur = (time.tv_sec * 1000.0) + (time.tv_usec / 1000.0);
+
+            if(bytesReceived == 0) // Sender disconnected
+            {
+                if_break = 1;
+                break;
+            }
+
+            else if(bytesReceived == -4)
+            {
+                if_break = 1;
+                break;
+            }
+
+            else if(bytesReceived == -3 || bytesReceived == -5)
+            {
+                bytesReceived = 0;
+            }
+
+            else if(bytesReceived == -2)
+            {
+                memset(prev_pack, 0, sizeof(rudp_pack));
+                TotalBytesReceived = 0;
+                bytesReceived = 0;
+                gettimeofday(&time, NULL);
+            }
+
+            else if(bytesReceived < 0)
+            {
+                if_break = 1;
+                break;
+            }
+
+            count_buffer++;
+            
+            if (count_buffer != 1)
+            {
+                total_time += time_cur - time_last;
+            }
+            
+            time_last = time_cur;
+
+            TotalBytesReceived += bytesReceived;
+        }
+        
+        if(bytesReceived == 0 || if_break) 
+        {
+            free(pack);
+            free(prev_pack);
+            break;
+        }
+
+        else
+        {
+            printf("File transfer completed.\n");
+
+            bandwidth = (TotalBytesReceived / 1024.0) / (total_time);
+            sum_bandwidth += bandwidth;
+            sum_times += total_time;
+            count_runs++;
+
+            char* s = (char*)malloc(100);
+            sprintf(s, "- Run #%d Data: Time =%f ms; Speed =%f MB/s;\n", count_runs, total_time, bandwidth);
+            str = (char*)realloc(str, strlen(str)+strlen(s)+1);
+            strcat(str, s);
+            free(s);
+        }
+
+        bytesReceived = rudp_recv(sock,pack, prev_pack);
+        gettimeofday(&time, NULL);
+
+        if(bytesReceived == 0) 
+        {
+            free(pack);
+            free(prev_pack);
+            break;
+        }
+    }
+
+    printf("Sender sent exit message.\n");
+
+    printf("-----------------------------\n");
+    printf("%s\n\n", str);
+    printf("- Avrage time: %f ms\n", sum_times/count_runs);
+    printf("- Avrage bandwidth: %f MB/s\n", sum_bandwidth/count_runs);
+    printf("-----------------------------\n");
+
+    rudp_close(sock);
+    printf("Receiver end.\n");
+    free(str);
+    return 0;
 }
