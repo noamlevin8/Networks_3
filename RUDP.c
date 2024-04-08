@@ -242,11 +242,11 @@ int rudp_send(p_RUDP_Sock sock, p_rudp_pack pack)
 }
 
 // 0 - problem
-// 1 - nothing to be done
-// 2 - resending SYN-ACK
-// 3 - resending ACK
-// 4 - sending FIN-ACK
-// 5 - too many tries to send FIN-ACK
+// -6 - nothing to be done
+// -2 - resending SYN-ACK
+// -3 - resending ACK
+// -4 - sending FIN-ACK
+// -5 - too many tries to send FIN-ACK
 // bytes_received - success
 int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
 {
@@ -276,7 +276,7 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
         if(send_SYN_ACK(sock, pack->length))
         {
             printf("Resending SYN-ACK\n");
-            return 2;
+            return -2;
         }
 
         printf("Error in resending SYN-ACK\n");
@@ -327,7 +327,7 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
                         if(send_ACK(sock, pack->sequence))
                         {
                             prev_pack->packet_flags.REACK = 1; // Now we know that the current packet is a packet that we resent an ACK on
-                            return 3;
+                            return -3;
                         }
                         printf("ACK error\n");
                         return 0;  
@@ -348,13 +348,13 @@ int rudp_recv(p_RUDP_Sock sock, p_rudp_pack pack, p_rudp_pack prev_pack)
                 
                 if(bytes_sent >= 0) // Means that we sent a FIN-ACK or that the connection is already closed
                 {
-                    return 4;
+                    return -4;
                 }
             }
-            return 5;
+            return -5;
         }
     }
-    return 1;
+    return -6;
 }
 
 // 0 - problem
