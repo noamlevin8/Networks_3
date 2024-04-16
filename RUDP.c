@@ -806,9 +806,23 @@ int send_FIN(p_RUDP_Sock sock, p_rudp_pack pack)
     return 1;
 }
 
-//
-//
+
 unsigned short int calculate_checksum(void* data, unsigned int bytes)
 {
-
+    unsigned short int *data_pointer = (unsigned short int *)data;
+    unsigned int total_sum = 0;
+    while(bytes > 1)
+    {
+        total_sum += *data_pointer++;
+        bytes -=2;
+    }
+    if(bytes > 0)
+    {
+        total_sum += *((unsigned char *)data_pointer);
+    }
+    while(total_sum >> 16)
+    {
+        total_sum = (total_sum & 0xFFFF) + (total_sum >> 16);
+    }
+    return (~((unsigned short int)total_sum));
 }
