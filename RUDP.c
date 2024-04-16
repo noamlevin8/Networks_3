@@ -95,7 +95,7 @@ int rudp_accept(p_RUDP_Sock sock)
     }
 
     memset(recv_pack, 0, sizeof(rudp_pack));
-    size_t dest_addr_len = sizeof(struct sockaddr);
+    socklen_t dest_addr_len = sizeof(struct sockaddr);
 
     int bytes_received;
     bytes_received = recvfrom(sock->socket_fd, recv_pack, sizeof(rudp_pack), 0, (struct sockaddr *)&sock->destination_addr, &dest_addr_len);
