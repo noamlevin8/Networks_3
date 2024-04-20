@@ -30,7 +30,7 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    printf("Waiting for TCP connection...\n");
+    printf("Waiting for RUDP connection...\n");
 
     int accept = rudp_accept(sock);
 
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
     
     printf("Sender connected, beginning to receive file...\n");
     
-    int bytesReceived, TotalBytesReceived, count_buffer, if_break = 0;
+    int bytesReceived, TotalBytesReceived, if_break = 0;
     double time_last, time_cur, total_time;
     int count_runs = 0;
     double sum_times = 0;
@@ -60,13 +60,11 @@ int main(int argc, char* argv[])
     {  
         TotalBytesReceived = 0;
         bytesReceived = 0;
-        count_buffer = 0;
-        char buffer[BUFFER_SIZE] = {0};
 
         time_last = 0;
         total_time = 0;
 
-        while (TotalBytesReceived < DATA_SIZE)
+        while (pack->sequence <= 2000000)
         {   
             bytesReceived = rudp_recv(sock, pack, prev_pack);
 
@@ -79,23 +77,19 @@ int main(int argc, char* argv[])
                 break;
             }
 
-            else if(bytesReceived == -4)
-            {
-                if_break = 1;
-                break;
-            }
-
-            else if(bytesReceived == -3 || bytesReceived == -5)
+            else if(bytesReceived == -2 || bytesReceived == -3)
             {
                 bytesReceived = 0;
             }
 
-            else if(bytesReceived == -2)
+            else if(bytesReceived == -4)
             {
                 memset(prev_pack, 0, sizeof(rudp_pack));
                 TotalBytesReceived = 0;
                 bytesReceived = 0;
+                time_last = 0;
                 gettimeofday(&time, NULL);
+                time_cur = (time.tv_sec * 1000.0) + (time.tv_usec / 1000.0);
             }
 
             else if(bytesReceived < 0)
@@ -104,12 +98,8 @@ int main(int argc, char* argv[])
                 break;
             }
 
-            count_buffer++;
-            
-            if (count_buffer != 1)
-            {
+            if(time_last != 0)
                 total_time += time_cur - time_last;
-            }
             
             time_last = time_cur;
 
@@ -139,8 +129,12 @@ int main(int argc, char* argv[])
             free(s);
         }
 
+        memset(pack, 0, sizeof(rudp_pack));
+        memset(prev_pack, 0, sizeof(rudp_pack));
+
         bytesReceived = rudp_recv(sock,pack, prev_pack);
         gettimeofday(&time, NULL);
+        time_cur = (time.tv_sec * 1000.0) + (time.tv_usec / 1000.0);
 
         if(bytesReceived == 0) 
         {
@@ -148,6 +142,7 @@ int main(int argc, char* argv[])
             free(prev_pack);
             break;
         }
+        memset(prev_pack, 0, sizeof(rudp_pack));
     }
 
     printf("Sender sent exit message.\n");

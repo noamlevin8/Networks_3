@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
     {
         char* data = util_generate_random_data(DATA_SIZE);
 
-        data_packet(pack, data, BUFFER_SIZE);
+        data_packet(pack, BUFFER_SIZE, data);
 
         while (pack->sequence <= DATA_SIZE)
         {
