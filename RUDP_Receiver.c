@@ -77,12 +77,12 @@ int main(int argc, char* argv[])
                 break;
             }
 
-            else if(bytesReceived == -2 || bytesReceived == -3)
+            else if(bytesReceived == -5 || bytesReceived == -3 || bytesReceived == -6)
             {
                 bytesReceived = 0;
             }
 
-            else if(bytesReceived == -4)
+            else if(bytesReceived == -2)
             {
                 memset(prev_pack, 0, sizeof(rudp_pack));
                 TotalBytesReceived = 0;
@@ -99,7 +99,9 @@ int main(int argc, char* argv[])
             }
 
             if(time_last != 0)
+            {
                 total_time += time_cur - time_last;
+            }
             
             time_last = time_cur;
 
