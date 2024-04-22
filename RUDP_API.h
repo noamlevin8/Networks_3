@@ -71,7 +71,7 @@ int rudp_disconnect(p_RUDP_Sock sock, int seq);
 void rudp_close(p_RUDP_Sock sock); 
 
 
-// 
+// Creating socket
 int create_socket();
 
 

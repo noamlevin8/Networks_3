@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
                 bytesReceived = 0;
             }
 
-            else if(bytesReceived == -2)
+            else if(bytesReceived == -2) // Starting again after sending SYN-ACK
             {
                 memset(prev_pack, 0, sizeof(rudp_pack));
                 TotalBytesReceived = 0;

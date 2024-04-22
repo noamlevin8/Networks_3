@@ -1,7 +1,7 @@
 #include "RUDP_API.h"
 
 
-// NULL - problem
+// NULL - problem 
 // sock - success
 p_RUDP_Sock rudp_socket(unsigned short int listen_port, int if_server)
 {

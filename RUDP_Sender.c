@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
                 pack->sequence += pack->length;
             }
 
-            data_packet(pack, pack->sequence, data + pack->sequence);//
+            data_packet(pack, pack->sequence, data + pack->sequence);
         }
 
         if(!if_break)
